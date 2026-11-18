@@ -1769,11 +1769,11 @@ fn build_ui(app: &Application) {
     let is_nvidia_hw = has_nvidia_gpu();
 
     let row_optimize = ActionRow::builder()
-        .title(if is_asus_hw { "ASUS Optimized" } else if is_nvidia_hw { "NVIDIA Optimized" } else { "" })
+        .title(if is_asus_hw { "ASUS Optimized" } else if is_nvidia_hw { "NVIDIA Driver Support" } else { "" })
         .subtitle(if is_asus_hw {
             "ASUS hardware-specific drivers and optimizations"
         } else if is_nvidia_hw {
-            "NVIDIA proprietary driver included"
+            "Include an NVIDIA driver in the installed system"
         } else {
             ""
         })
