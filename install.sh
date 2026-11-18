@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-REPO="zamkara/alga"
+REPO="lydiaperspective/lyd-agka"
 PREFIX="/usr/local"
 
 # ── Install runtime dependencies ──────────────────────────────────────────────

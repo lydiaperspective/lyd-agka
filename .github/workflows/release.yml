@@ -43,7 +43,7 @@ jobs:
           pkgrel=${{ github.run_number }}
           pkgdesc="Atomic deployment and update gateway to immutable Arch Linux built using Rust and GTK4/Libadwaita"
           arch=('x86_64')
-          url="https://github.com/zamkara/alga"
+          url="https://github.com/lydiaperspective/lyd-agka"
           license=('MIT')
           depends=('gtk4' 'libadwaita' 'vte3' 'polkit')
           makedepends=('cargo')

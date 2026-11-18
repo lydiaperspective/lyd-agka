@@ -50,7 +50,7 @@ All btrfs mounts use `compress=zstd,noatime` options. The `@snapshots` subvolume
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/zamkara/alga/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/lydiaperspective/lyd-agka/main/install.sh | sh
 ```
 
 Installs alga and all required dependencies automatically. Supports Arch, Ubuntu/Debian, Fedora, and openSUSE.

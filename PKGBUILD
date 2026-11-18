@@ -3,11 +3,11 @@ pkgver=1.0.0
 pkgrel=2
 pkgdesc="Atomic deployment and update gateway to immutable Arch Linux built using Rust and GTK4/Libadwaita"
 arch=('x86_64')
-url="https://github.com/zamkara/alga"
+url="https://github.com/lydiaperspective/lyd-agka"
 license=('MIT')
 depends=('gtk4' 'libadwaita' 'vte3' 'polkit')
 makedepends=('cargo' 'git')
-source=("git+https://github.com/zamkara/alga.git")
+source=("git+https://github.com/lydiaperspective/lyd-agka.git")
 md5sums=('SKIP')
 
 build() {

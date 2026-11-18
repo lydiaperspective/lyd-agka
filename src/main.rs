@@ -93,7 +93,7 @@ fn check_alga_update() -> Result<Option<String>, String> {
             .map_err(|e| format!("Client error: {}", e))?;
 
         let resp = client
-            .get("https://api.github.com/repos/zamkara/alga/releases/latest")
+            .get("https://api.github.com/repos/lydiaperspective/lyd-agka/releases/latest")
             .send()
             .await
             .map_err(|e| format!("Network error: {}", e))?;
@@ -142,7 +142,7 @@ fn download_alga_update(version: &str) -> Result<(), String> {
         let run_number = version.trim_start_matches('v');
         let asset_name = format!("alga-1.0.0-{}-x86_64.pkg.tar.zst", run_number);
         let url = format!(
-            "https://github.com/zamkara/alga/releases/download/{}/{}",
+            "https://github.com/lydiaperspective/lyd-agka/releases/download/{}/{}",
             version, asset_name
         );
         let resp = client.get(&url).send().await.map_err(|e| format!("Download error: {}", e))?;
@@ -1769,11 +1769,11 @@ fn build_ui(app: &Application) {
     let is_nvidia_hw = has_nvidia_gpu();
 
     let row_optimize = ActionRow::builder()
-        .title(if is_asus_hw { "ASUS Optimized" } else if is_nvidia_hw { "NVIDIA Optimized" } else { "" })
+        .title(if is_asus_hw { "ASUS Optimized" } else if is_nvidia_hw { "NVIDIA Driver Support" } else { "" })
         .subtitle(if is_asus_hw {
             "ASUS hardware-specific drivers and optimizations"
         } else if is_nvidia_hw {
-            "NVIDIA proprietary driver included"
+            "Include an NVIDIA driver in the installed system"
         } else {
             ""
         })
@@ -1785,6 +1785,32 @@ fn build_ui(app: &Application) {
         .build();
     row_optimize.add_suffix(&opt_switch);
     grp_kernel.add(&row_optimize);
+
+    // --- NVIDIA Driver Choice ---
+    let grp_nvidia_driver = PreferencesGroup::builder()
+        .description("Choose which NVIDIA driver to install. The proprietary 580 series is intended for GPUs that need the legacy driver branch.")
+        .visible(is_nvidia_hw)
+        .build();
+    let nvidia_open = CheckButton::builder().build();
+    let nvidia_580 = CheckButton::builder().group(&nvidia_open).build();
+    nvidia_open.set_active(true);
+
+    let row_nvidia_open = ActionRow::builder()
+        .title("Standard NVIDIA (open DKMS)")
+        .subtitle("Arch Linux open kernel module and matching userspace")
+        .build();
+    row_nvidia_open.add_prefix(&nvidia_open);
+    row_nvidia_open.set_activatable_widget(Some(&nvidia_open));
+    grp_nvidia_driver.add(&row_nvidia_open);
+
+    let row_nvidia_580 = ActionRow::builder()
+        .title("NVIDIA 580 (proprietary)")
+        .subtitle("CachyOS 580xx DKMS driver and matching userspace packages")
+        .build();
+    row_nvidia_580.add_prefix(&nvidia_580);
+    row_nvidia_580.set_activatable_widget(Some(&nvidia_580));
+    grp_nvidia_driver.add(&row_nvidia_580);
+    grp_kernel.add(&grp_nvidia_driver);
 
     // --- Apex Mode Switch ---
     let row_apex = ActionRow::builder()
@@ -2174,7 +2200,7 @@ fn build_ui(app: &Application) {
         }
     }));
     
-    next_btn2.connect_clicked(clone!(#[weak] drawer_stack, #[strong] target_variant, #[strong] target_zram, #[weak] k_zen, #[weak] k_lts, #[weak] k_hardened, #[weak] apex_switch, #[weak] opt_switch, #[weak] combo_zram , move |_| {
+    next_btn2.connect_clicked(clone!(#[weak] drawer_stack, #[strong] target_variant, #[strong] target_zram, #[weak] k_zen, #[weak] k_lts, #[weak] k_hardened, #[weak] apex_switch, #[weak] opt_switch, #[weak] nvidia_580, #[weak] combo_zram , move |_| {
         let kernel = if k_zen.is_active() { "zen" }
                      else if k_lts.is_active() { "lts" }
                      else if k_hardened.is_active() { "hardened" }
@@ -2184,6 +2210,7 @@ fn build_ui(app: &Application) {
         let opt_on = opt_switch.is_active();
         let is_asus_hw = is_asus_device();
         let is_nvidia_hw = has_nvidia_gpu();
+        let use_nvidia_580 = nvidia_580.is_active();
 
         let var_name = {
             let base = match (kernel, is_apex) {
@@ -2198,9 +2225,11 @@ fn build_ui(app: &Application) {
                 (k,           false) => format!("ark-{}", k),
                 (k,           true)  => format!("ark-apex-{}", k),
             };
-            let suffix = if opt_on && is_asus_hw && kernel == "zen" && is_nvidia_hw { "-asus-nvidia" }
+            let suffix = if opt_on && is_asus_hw && kernel == "zen" && is_nvidia_hw && use_nvidia_580 { "-asus-nvidia-580" }
+                         else if opt_on && is_asus_hw && kernel == "zen" && is_nvidia_hw { "-asus-nvidia" }
                          else if opt_on && is_asus_hw && kernel == "zen" { "-asus" }
-                         else if opt_on && !is_asus_hw && is_nvidia_hw { "-nvidia" }
+                         else if opt_on && is_nvidia_hw && use_nvidia_580 { "-nvidia-580" }
+                         else if opt_on && is_nvidia_hw { "-nvidia" }
                          else { "" };
             format!("{}{}", base, suffix)
         };
@@ -2464,7 +2493,7 @@ fn build_ui(app: &Application) {
                        mount -t btrfs -o subvol=@containers $ROOT_DEV /mnt/var/lib/containers && \
                        _bootc_ok=0; \
                        _primary=\"quay.io/arklinux/gnome:{variant}\"; \
-                       _fallback=\"ghcr.io/zamkara/ark-image:{variant}\"; \
+                       _fallback=\"ghcr.io/lydiaperspective/lyd-ark-image:{variant}\"; \
                        for _try in 1 2 3; do \
                          bootc install to-filesystem --source-imgref docker://$_primary --bootloader none /mnt && {{ _bootc_ok=1; break; }}; \
                          echo \"bootc install attempt $_try/3 (quay.io) failed, retrying in 5s...\"; sleep 5; \
