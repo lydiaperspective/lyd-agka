@@ -2479,6 +2479,8 @@ fn build_ui(app: &Application) {
                 std::fs::set_permissions(&account_file, std::fs::Permissions::from_mode(0o600))
             })
         {
+            let _ = std::fs::remove_file(&account_file);
+            let _ = cancel_sender.borrow_mut().take();
             if let Some(id) = pulse_timeout.borrow_mut().take() {
                 id.remove();
             }
