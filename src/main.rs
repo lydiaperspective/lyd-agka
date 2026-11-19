@@ -2924,14 +2924,19 @@ fn build_ui(app: &Application) {
 ACCOUNT_FILE="{account_file}"
 trap 'rm -f "$ACCOUNT_FILE"' EXIT
 DEPLOY_PATH=$(find /tmp/root_mnt/ostree/deploy/default/deploy -mindepth 1 -maxdepth 1 -type d -name '*.0' | head -n1)
-[ -n "$DEPLOY_PATH" ] || { echo "Could not locate installed deployment"; exit 1; }
-{
+[ -n "$DEPLOY_PATH" ] || {{ echo "Could not locate installed deployment"; exit 1; }}
+{{
     IFS= read -r USERNAME
     IFS= read -r FULL_NAME
     IFS= read -r PASSWORD
-} < "$ACCOUNT_FILE"
-[[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] || { echo "Invalid username"; exit 1; }
-[[ -n "$FULL_NAME" && -n "$PASSWORD" && "$PASSWORD" != *:* ]] || { echo "Invalid account details"; exit 1; }
+}} < "$ACCOUNT_FILE"
+[[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] || {{ echo "Invalid username"; exit 1; }}
+[[ -n "$FULL_NAME" && -n "$PASSWORD" && "$PASSWORD" != *:* ]] || {{ echo "Invalid account details"; exit 1; }}
+{{
+    IFS= read -r USERNAME
+    IFS= read -r FULL_NAME
+    IFS= read -r PASSWORD
+}} < "$ACCOUNT_FILE"
 chroot "$DEPLOY_PATH" useradd --no-create-home --groups wheel --shell /bin/bash "$USERNAME"
 printf '%s:%s\n' "$USERNAME" "$PASSWORD" | chroot "$DEPLOY_PATH" chpasswd
 chroot "$DEPLOY_PATH" usermod --comment "$FULL_NAME" "$USERNAME"
