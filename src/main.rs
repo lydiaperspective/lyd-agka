@@ -2528,9 +2528,9 @@ fn build_ui(app: &Application) {
                        mount -t btrfs -o subvol=@log-user $ROOT_DEV /mnt/var/log/user && \
                        mount -t btrfs -o subvol=@flatpak $ROOT_DEV /mnt/var/lib/flatpak && \
                        mount -t btrfs -o subvol=@containers $ROOT_DEV /mnt/var/lib/containers && \
-                       mkdir -p /mnt/boot/efi && mount \\\"$EFI_PART\\\" /mnt/boot/efi && \\
+                       mkdir -p /mnt/boot/efi && mount $EFI_PART /mnt/boot/efi && \\
                        bootc install to-filesystem --source-imgref docker://$_image --bootloader none /mnt || {{ \\
-                         echo "ERROR: bootc install failed. The target has been partially initialized; rerun the installer to reformat it before trying again." >&2; \\
+                         echo 'ERROR: bootc install failed. Target partially initialized; rerun installer to reformat before retrying.' >&2; \\
                          exit 1; \\
                        }} && \\
                       mkdir -p /tmp/rw_root && \
@@ -2562,8 +2562,8 @@ fn build_ui(app: &Application) {
                       printf '%s /var/log/user btrfs subvol=@log-user,compress=zstd,noatime,nofail 0 0\\n' \"$ROOT_FS_SPEC\" >> $DEPLOY_ETC/fstab && \
                       printf '%s /var/lib/flatpak btrfs subvol=@flatpak,compress=zstd,noatime,nofail 0 0\\n' \"$ROOT_FS_SPEC\" >> $DEPLOY_ETC/fstab && \
                       printf '%s /var/lib/containers btrfs subvol=@containers,compress=zstd,noatime,nofail 0 0\\n' \"$ROOT_FS_SPEC\" >> $DEPLOY_ETC/fstab && \
-                      mkdir -p \\\"$DEPLOY_ROOT/boot/efi\\\" && \\
-                      printf 'UUID=%s /boot/efi    vfat  umask=0077 0 2\\\\n' \\\"$EFI_UUID\\\" >> $DEPLOY_ETC/fstab && \
+                      mkdir -p $DEPLOY_ROOT/boot/efi && \\
+                      printf 'UUID=%s /boot/efi    vfat  umask=0077 0 2\\\\n' $EFI_UUID >> $DEPLOY_ETC/fstab && \
                       if [ \"$ROOT_DEV\" != \"$ROOT_PART\" ]; then \
                         mkdir -p /mnt/var/lib && \
                         cryptsetup luksHeaderBackup \"$ROOT_PART\" --header-backup-file /mnt/var/lib/luks-header.backup && \
