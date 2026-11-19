@@ -2695,9 +2695,7 @@ fn build_ui(app: &Application) {
                       [[ -n \"$FULL_NAME\" && -n \"$PASSWORD\" && \"$PASSWORD\" != *:* ]] && \
                       PASSWORD_HASH=$(printf '%s' \"$PASSWORD\" | openssl passwd -6 -stdin) && \
                       [[ \"$PASSWORD_HASH\" == '$6$'* ]] && \
-                      umask 077 && install -d -m 0700 /mnt/var/lib/ark-installer && \
-                      printf '%s\\n%s\\n%s\\n' \"$USERNAME\" \"$FULL_NAME\" \"$PASSWORD_HASH\" > /mnt/var/lib/ark-installer/pending-account && \
-                      chmod 0600 /mnt/var/lib/ark-installer/pending-account && \
+                      ( umask 077 && install -d -m 0700 /mnt/var/lib/ark-installer && printf '%s\\n%s\\n%s\\n' \"$USERNAME\" \"$FULL_NAME\" \"$PASSWORD_HASH\" > /mnt/var/lib/ark-installer/pending-account && chmod 0600 /mnt/var/lib/ark-installer/pending-account ) && \
                       rm -f \"$ACCOUNT_FILE\" && \
                       mkdir -p /tmp/rw_root && \
                       mount -t btrfs -o subvol=@ $ROOT_DEV /tmp/rw_root && \
