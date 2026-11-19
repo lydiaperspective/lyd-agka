@@ -1828,6 +1828,7 @@ fn build_ui(app: &Application) {
         #[weak] row_optimize,
         #[weak] grp_nvidia_driver,
         #[weak] row_apex,
+        #[weak] opt_switch,
         move |s| {
             let desktop_profile = !s.is_active();
             row_optimize.set_visible(desktop_profile && is_nvidia_hw);
