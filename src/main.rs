@@ -231,6 +231,26 @@ fn has_nvidia_gpu() -> bool {
     false
 }
 
+fn is_intel_3rd_gen_cpu() -> bool {
+    let cpuinfo = std::fs::read_to_string("/proc/cpuinfo").unwrap_or_default();
+    let mut vendor = false;
+    let mut family = None;
+    let mut model = None;
+    for line in cpuinfo.lines() {
+        let Some((key, value)) = line.split_once(':') else { continue };
+        match key.trim() {
+            "vendor_id" => vendor |= value.trim() == "GenuineIntel",
+            "cpu family" => family = value.trim().parse::<u32>().ok(),
+            "model" => model = value.trim().parse::<u32>().ok(),
+            _ => {}
+        }
+        if vendor && family == Some(6) && matches!(model, Some(58 | 62)) {
+            return true;
+        }
+    }
+    false
+}
+
 
 const BLS_SYNC_SCRIPT: &str = r#"#!/bin/bash
 set -euo pipefail
@@ -1735,52 +1755,21 @@ fn build_ui(app: &Application) {
     let title2 = Label::builder().label("<b>System Configuration</b>").use_markup(true).halign(gtk::Align::Start).build();
     title2.add_css_class("title-2");
     
-    // --- Kernel Selection ---
-    let grp_kernel = PreferencesGroup::builder().description("Choose the core kernel that best suits your workflow.").build();
-    let k_linux = CheckButton::builder().build();
-    let k_zen = CheckButton::builder().group(&k_linux).build();
-    let k_lts = CheckButton::builder().group(&k_linux).build();
-    let k_hardened = CheckButton::builder().group(&k_linux).build();
-    
-    let row_kl = ActionRow::builder().title("Ark Standard").subtitle("Default kernel").build();
-    row_kl.add_prefix(&k_linux);
-    row_kl.set_activatable_widget(Some(&k_linux));
-    k_linux.set_active(true);
-    
-    let row_kz = ActionRow::builder().title("Ark Zen").subtitle("Desktop and gaming optimized").build();
-    row_kz.add_prefix(&k_zen);
-    row_kz.set_activatable_widget(Some(&k_zen));
-    
-    let row_klts = ActionRow::builder().title("Ark LTS").subtitle("Maximum stability").build();
-    row_klts.add_prefix(&k_lts);
-    row_klts.set_activatable_widget(Some(&k_lts));
-    
-    let row_kh = ActionRow::builder().title("Ark Hardened").subtitle("Security focused").build();
-    row_kh.add_prefix(&k_hardened);
-    row_kh.set_activatable_widget(Some(&k_hardened));
-    
-    grp_kernel.add(&row_kl);
-    grp_kernel.add(&row_kz);
-    grp_kernel.add(&row_klts);
-    grp_kernel.add(&row_kh);
-    
-    // --- Hardware Optimization Switch (ASUS / NVIDIA) ---
-    let is_asus_hw = is_asus_device();
+    // --- Image Profile Selection ---
+    let grp_kernel = PreferencesGroup::builder()
+        .description("Choose the standard or Apex desktop image, or select the headless Intel 3rd-gen server profile.")
+        .build();
+
     let is_nvidia_hw = has_nvidia_gpu();
+    let is_intel3_server_cpu = is_intel_3rd_gen_cpu();
 
     let row_optimize = ActionRow::builder()
-        .title(if is_asus_hw { "ASUS Optimized" } else if is_nvidia_hw { "NVIDIA Driver Support" } else { "" })
-        .subtitle(if is_asus_hw {
-            "ASUS hardware-specific drivers and optimizations"
-        } else if is_nvidia_hw {
-            "Include an NVIDIA driver in the installed system"
-        } else {
-            ""
-        })
-        .visible(is_asus_hw || is_nvidia_hw)
+        .title("NVIDIA Driver Support")
+        .subtitle("Include an NVIDIA driver in the installed system")
+        .visible(is_nvidia_hw)
         .build();
     let opt_switch = Switch::builder()
-        .active(is_asus_hw || is_nvidia_hw)
+        .active(is_nvidia_hw)
         .valign(gtk::Align::Center)
         .build();
     row_optimize.add_suffix(&opt_switch);
@@ -1788,7 +1777,7 @@ fn build_ui(app: &Application) {
 
     // --- NVIDIA Driver Choice ---
     let grp_nvidia_driver = PreferencesGroup::builder()
-        .description("Choose which NVIDIA driver to install. The proprietary 580 series is intended for GPUs that need the legacy driver branch.")
+        .description("Choose the NVIDIA driver. The proprietary 580 series is intended for GPUs that need the legacy driver branch.")
         .visible(is_nvidia_hw)
         .build();
     let nvidia_open = CheckButton::builder().build();
@@ -1796,7 +1785,7 @@ fn build_ui(app: &Application) {
     nvidia_open.set_active(true);
 
     let row_nvidia_open = ActionRow::builder()
-        .title("Standard NVIDIA (open DKMS)")
+        .title("NVIDIA Open (DKMS)")
         .subtitle("Arch Linux open kernel module and matching userspace")
         .build();
     row_nvidia_open.add_prefix(&nvidia_open);
@@ -1812,32 +1801,40 @@ fn build_ui(app: &Application) {
     grp_nvidia_driver.add(&row_nvidia_580);
     grp_kernel.add(&grp_nvidia_driver);
 
+    opt_switch.connect_active_notify(clone!(#[weak] grp_nvidia_driver, move |s| {
+        grp_nvidia_driver.set_visible(is_nvidia_hw && s.is_active());
+    }));
+
     // --- Apex Mode Switch ---
     let row_apex = ActionRow::builder()
         .title("Apex Mode")
-        .subtitle("Uses the CachyOS kernel, it's faster and more responsive out of the box")
+        .subtitle("Uses the CachyOS Apex kernel")
         .build();
     let apex_switch = Switch::builder().active(false).valign(gtk::Align::Center).build();
     row_apex.add_suffix(&apex_switch);
     grp_kernel.add(&row_apex);
 
-    let apex_hardened_warning = Label::builder()
-        .label("⚠ Apex Hardened combines aggressive security hardening with kernel optimizations. Expect significantly reduced performance.")
-        .wrap(true)
-        .halign(gtk::Align::Start)
-        .margin_start(16)
-        .margin_top(4)
-        .margin_bottom(4)
-        .visible(false)
+    // --- Intel 3rd-gen Headless Server Profile ---
+    let row_server = ActionRow::builder()
+        .title("Headless Server Profile")
+        .subtitle("Intel 3rd-gen · LTS kernel · Cockpit and SSH")
+        .visible(is_intel3_server_cpu)
         .build();
-    apex_hardened_warning.add_css_class("warning");
+    let server_switch = Switch::builder().active(false).valign(gtk::Align::Center).build();
+    row_server.add_suffix(&server_switch);
+    grp_kernel.add(&row_server);
 
-    apex_switch.connect_active_notify(clone!(#[weak] k_hardened, #[weak] apex_hardened_warning , move |s| {
-        apex_hardened_warning.set_visible(s.is_active() && k_hardened.is_active());
-    }));
-    k_hardened.connect_active_notify(clone!(#[weak] apex_switch, #[weak] apex_hardened_warning , move |s| {
-        apex_hardened_warning.set_visible(s.is_active() && apex_switch.is_active());
-    }));
+    server_switch.connect_active_notify(clone!(
+        #[weak] row_optimize,
+        #[weak] grp_nvidia_driver,
+        #[weak] row_apex,
+        move |s| {
+            let desktop_profile = !s.is_active();
+            row_optimize.set_visible(desktop_profile && is_nvidia_hw);
+            grp_nvidia_driver.set_visible(desktop_profile && is_nvidia_hw && opt_switch.is_active());
+            row_apex.set_visible(desktop_profile);
+        }
+    ));
 
     // --- zRAM Swap Size ---
     let grp_zram = PreferencesGroup::builder().description("Select the amount of compressed RAM to use as swap space.").build();
@@ -2200,38 +2197,34 @@ fn build_ui(app: &Application) {
         }
     }));
     
-    next_btn2.connect_clicked(clone!(#[weak] drawer_stack, #[strong] target_variant, #[strong] target_zram, #[weak] k_zen, #[weak] k_lts, #[weak] k_hardened, #[weak] apex_switch, #[weak] opt_switch, #[weak] nvidia_580, #[weak] combo_zram , move |_| {
-        let kernel = if k_zen.is_active() { "zen" }
-                     else if k_lts.is_active() { "lts" }
-                     else if k_hardened.is_active() { "hardened" }
-                     else { "linux" };
-
+    next_btn2.connect_clicked(clone!(
+        #[weak] drawer_stack,
+        #[strong] target_variant,
+        #[strong] target_zram,
+        #[weak] apex_switch,
+        #[weak] server_switch,
+        #[weak] opt_switch,
+        #[weak] nvidia_580,
+        #[weak] combo_zram,
+        move |_| {
         let is_apex = apex_switch.is_active();
-        let opt_on = opt_switch.is_active();
-        let is_asus_hw = is_asus_device();
-        let is_nvidia_hw = has_nvidia_gpu();
+        let use_server_profile = server_switch.is_active();
+        let include_nvidia = opt_switch.is_active() && has_nvidia_gpu();
         let use_nvidia_580 = nvidia_580.is_active();
 
-        let var_name = {
-            let base = match (kernel, is_apex) {
-                ("linux",     false) => "ark".to_string(),
-                ("linux",     true)  => "ark-apex".to_string(),
-                ("zen",       false) => "ark-zen".to_string(),
-                ("zen",       true)  => "ark-apex-bore".to_string(),
-                ("lts",       false) => "ark-lts".to_string(),
-                ("lts",       true)  => "ark-apex-lts".to_string(),
-                ("hardened",  false) => "ark-hardened".to_string(),
-                ("hardened",  true)  => "ark-apex-hardened".to_string(),
-                (k,           false) => format!("ark-{}", k),
-                (k,           true)  => format!("ark-apex-{}", k),
-            };
-            let suffix = if opt_on && is_asus_hw && kernel == "zen" && is_nvidia_hw && use_nvidia_580 { "-asus-nvidia-580" }
-                         else if opt_on && is_asus_hw && kernel == "zen" && is_nvidia_hw { "-asus-nvidia" }
-                         else if opt_on && is_asus_hw && kernel == "zen" { "-asus" }
-                         else if opt_on && is_nvidia_hw && use_nvidia_580 { "-nvidia-580" }
-                         else if opt_on && is_nvidia_hw { "-nvidia" }
-                         else { "" };
-            format!("{}{}", base, suffix)
+        let var_name = if use_server_profile {
+            "intel3-server-lts".to_string()
+        } else if include_nvidia {
+            match (is_apex, use_nvidia_580) {
+                (false, false) => "ark-nvidia-open".to_string(),
+                (true, false) => "ark-apex-nvidia-open".to_string(),
+                (false, true) => "ark-nvidia-580".to_string(),
+                (true, true) => "ark-apex-nvidia-580".to_string(),
+            }
+        } else if is_apex {
+            "intel-modern-apex".to_string()
+        } else {
+            "intel-modern".to_string()
         };
         
         *target_variant.borrow_mut() = var_name;
