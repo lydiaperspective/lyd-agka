@@ -251,6 +251,55 @@ fn is_intel_3rd_gen_cpu() -> bool {
     false
 }
 
+/// Resolve the installable, fully composed bootc image for the selected components.
+///
+/// The build pipeline publishes base and kernel images independently, then composes
+/// the requested driver layer into these final installable tags. Keep this mapping
+/// aligned with the build-final matrix in lyd-ark-image/.github/workflows/build-payload.yml.
+fn resolve_image_tag(
+    use_server_profile: bool,
+    use_apex: bool,
+    include_nvidia: bool,
+    use_nvidia_580: bool,
+) -> &'static str {
+    if use_server_profile {
+        // The server base always uses the LTS kernel and no desktop GPU layer.
+        "intel3-server-lts"
+    } else if include_nvidia {
+        match (use_apex, use_nvidia_580) {
+            (false, false) => "ark-nvidia-open",
+            (true, false) => "ark-apex-nvidia-open",
+            (false, true) => "ark-nvidia-580",
+            (true, true) => "ark-apex-nvidia-580",
+        }
+    } else if use_apex {
+        "intel-modern-apex"
+    } else {
+        "intel-modern"
+    }
+}
+
+#[cfg(test)]
+mod image_selection_tests {
+    use super::resolve_image_tag;
+
+    #[test]
+    fn maps_desktop_kernel_and_driver_combinations_to_published_images() {
+        assert_eq!(resolve_image_tag(false, false, false, false), "intel-modern");
+        assert_eq!(resolve_image_tag(false, true, false, false), "intel-modern-apex");
+        assert_eq!(resolve_image_tag(false, false, true, false), "ark-nvidia-open");
+        assert_eq!(resolve_image_tag(false, true, true, false), "ark-apex-nvidia-open");
+        assert_eq!(resolve_image_tag(false, false, true, true), "ark-nvidia-580");
+        assert_eq!(resolve_image_tag(false, true, true, true), "ark-apex-nvidia-580");
+    }
+
+    #[test]
+    fn server_profile_forces_server_lts_image() {
+        assert_eq!(resolve_image_tag(true, false, false, false), "intel3-server-lts");
+        assert_eq!(resolve_image_tag(true, true, true, true), "intel3-server-lts");
+    }
+}
+
 
 const BLS_SYNC_SCRIPT: &str = r#"#!/bin/bash
 set -euo pipefail
@@ -1757,7 +1806,7 @@ fn build_ui(app: &Application) {
     
     // --- Image Profile Selection ---
     let grp_kernel = PreferencesGroup::builder()
-        .description("Choose the standard or Apex desktop image, or select the headless Intel 3rd-gen server profile.")
+        .description("Choose the system profile, kernel, and GPU driver independently. The build pipeline composes these layers into the matching installable image.")
         .build();
 
     let is_nvidia_hw = has_nvidia_gpu();
@@ -1765,7 +1814,7 @@ fn build_ui(app: &Application) {
 
     let row_optimize = ActionRow::builder()
         .title("NVIDIA Driver Support")
-        .subtitle("Include an NVIDIA driver in the installed system")
+        .subtitle("Add an NVIDIA driver layer to the desktop system")
         .visible(is_nvidia_hw)
         .build();
     let opt_switch = Switch::builder()
@@ -1777,7 +1826,7 @@ fn build_ui(app: &Application) {
 
     // --- NVIDIA Driver Choice ---
     let grp_nvidia_driver = PreferencesGroup::builder()
-        .description("Choose the NVIDIA driver. The proprietary 580 series is intended for GPUs that need the legacy driver branch.")
+        .description("Choose which NVIDIA driver layer is composed into the desktop image.")
         .visible(is_nvidia_hw)
         .build();
     let nvidia_open = CheckButton::builder().build();
@@ -1808,7 +1857,7 @@ fn build_ui(app: &Application) {
     // --- Apex Mode Switch ---
     let row_apex = ActionRow::builder()
         .title("Apex Mode")
-        .subtitle("Uses the CachyOS Apex kernel")
+        .subtitle("Uses the separately built CachyOS Apex kernel layer instead of the standard kernel")
         .build();
     let apex_switch = Switch::builder().active(false).valign(gtk::Align::Center).build();
     row_apex.add_suffix(&apex_switch);
@@ -1817,7 +1866,7 @@ fn build_ui(app: &Application) {
     // --- Intel 3rd-gen Headless Server Profile ---
     let row_server = ActionRow::builder()
         .title("Headless Server Profile")
-        .subtitle("Intel 3rd-gen · LTS kernel · Cockpit and SSH")
+        .subtitle("Intel 3rd-gen · server base + LTS kernel · Cockpit and SSH")
         .visible(is_intel3_server_cpu)
         .build();
     let server_switch = Switch::builder().active(false).valign(gtk::Align::Center).build();
@@ -2212,20 +2261,12 @@ fn build_ui(app: &Application) {
         let include_nvidia = opt_switch.is_active() && has_nvidia_gpu();
         let use_nvidia_580 = nvidia_580.is_active();
 
-        let var_name = if use_server_profile {
-            "intel3-server-lts".to_string()
-        } else if include_nvidia {
-            match (is_apex, use_nvidia_580) {
-                (false, false) => "ark-nvidia-open".to_string(),
-                (true, false) => "ark-apex-nvidia-open".to_string(),
-                (false, true) => "ark-nvidia-580".to_string(),
-                (true, true) => "ark-apex-nvidia-580".to_string(),
-            }
-        } else if is_apex {
-            "intel-modern-apex".to_string()
-        } else {
-            "intel-modern".to_string()
-        };
+        let var_name = resolve_image_tag(
+            use_server_profile,
+            is_apex,
+            include_nvidia,
+            use_nvidia_580,
+        ).to_string();
         
         *target_variant.borrow_mut() = var_name;
         
