@@ -2687,7 +2687,7 @@ fn build_ui(app: &Application) {
                          exit 1; \\
                        }} && \\
                       ACCOUNT_FILE="{account_file}" && \\
-                      { IFS= read -r USERNAME; IFS= read -r FULL_NAME; IFS= read -r PASSWORD; } < "$ACCOUNT_FILE" && \\
+                      {{ IFS= read -r USERNAME; IFS= read -r FULL_NAME; IFS= read -r PASSWORD; }} < "$ACCOUNT_FILE" && \\
                       [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] && \\
                       [[ -n "$FULL_NAME" && -n "$PASSWORD" && "$PASSWORD" != *:* ]] && \\
                       PASSWORD_HASH=$(printf '%s' "$PASSWORD" | openssl passwd -6 -stdin) && \\
