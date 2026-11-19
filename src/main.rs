@@ -2686,6 +2686,16 @@ fn build_ui(app: &Application) {
                          echo 'ERROR: bootc install failed. Target partially initialized; rerun installer to reformat before retrying.' >&2; \\
                          exit 1; \\
                        }} && \\
+                      ACCOUNT_FILE="{account_file}" && \\
+                      { IFS= read -r USERNAME; IFS= read -r FULL_NAME; IFS= read -r PASSWORD; } < "$ACCOUNT_FILE" && \\
+                      [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] && \\
+                      [[ -n "$FULL_NAME" && -n "$PASSWORD" && "$PASSWORD" != *:* ]] && \\
+                      PASSWORD_HASH=$(printf '%s' "$PASSWORD" | openssl passwd -6 -stdin) && \\
+                      [[ "$PASSWORD_HASH" == '$6$'* ]] && \\
+                      install -d -m 0700 /mnt/var/lib/ark-installer && \\
+                      printf '%s\\n%s\\n%s\\n' "$USERNAME" "$FULL_NAME" "$PASSWORD_HASH" > /mnt/var/lib/ark-installer/pending-account && \\
+                      chmod 0600 /mnt/var/lib/ark-installer/pending-account && \\
+                      rm -f "$ACCOUNT_FILE" && \\
                       mkdir -p /tmp/rw_root && \
                       mount -t btrfs -o subvol=@ $ROOT_DEV /tmp/rw_root && \
                       DEPLOY_ETC=$(ls -d /tmp/rw_root/ostree/deploy/default/deploy/*/etc | head -n 1) && \
@@ -2769,7 +2779,8 @@ fn build_ui(app: &Application) {
                      variant = variant,
                      zram = zram_val,
                      keyfile = keyfile,
-                     use_tpm2 = use_tpm2_str
+                     use_tpm2 = use_tpm2_str,
+                     account_file = account_file
                  );
                  
                  let mut child_install = tokio::process::Command::new("pkexec")
@@ -2920,67 +2931,7 @@ fn build_ui(app: &Application) {
                                 .await;
                         }
 
-                        let account_cmd = format!(r#"set -euo pipefail
-ACCOUNT_FILE="{account_file}"
-INSTALLED_ROOT=/tmp/ark-installed-root
-ROOT_PART=$(lsblk -rno PATH,FSTYPE {disk} | awk '$2 == "btrfs" {{ print $1; exit }}')
-if [[ -z "$ROOT_PART" && -b /dev/mapper/ark-root ]]; then ROOT_PART=/dev/mapper/ark-root; fi
-[ -b "$ROOT_PART" ] || {{ echo "Could not identify the installed Btrfs root device"; exit 1; }}
-cleanup_account_mount() {{
-    umount -R "$INSTALLED_ROOT" 2>/dev/null || true
-    rmdir "$INSTALLED_ROOT" 2>/dev/null || true
-    rm -f "$ACCOUNT_FILE"
-}}
-trap cleanup_account_mount EXIT
-{{
-    IFS= read -r USERNAME
-    IFS= read -r FULL_NAME
-    IFS= read -r PASSWORD
-}} < "$ACCOUNT_FILE"
-[[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] || {{ echo "Invalid username"; exit 1; }}
-[[ -n "$FULL_NAME" && -n "$PASSWORD" && "$PASSWORD" != *:* ]] || {{ echo "Invalid account details"; exit 1; }}
-
-# A raw chroot into an OSTree/composefs deployment exposes the immutable image
-# /etc. Use bootc's supported offline mount helper to assemble the deployment
-# with its writable, persistent /etc and /var state.
-mkdir -p "$INSTALLED_ROOT"
-bootc install mount --sysroot=/tmp/root_mnt --latest "$INSTALLED_ROOT"
-
-# Ark keeps /var on its own Btrfs subvolume, so attach it over bootc's default
-# shared-var mount before changing account state.
-mkdir -p "$INSTALLED_ROOT/var"
-mount -t btrfs -o subvol=@var "$ROOT_PART" "$INSTALLED_ROOT/var"
-[ -w "$INSTALLED_ROOT/etc" ] || {{ echo "bootc did not provide a writable installed /etc"; exit 1; }}
-[ -w "$INSTALLED_ROOT/var" ] || {{ echo "Installed /var is not writable"; exit 1; }}
-
-chroot "$INSTALLED_ROOT" useradd --no-create-home --groups wheel --shell /bin/bash "$USERNAME"
-printf '%s:%s\n' "$USERNAME" "$PASSWORD" | chroot "$INSTALLED_ROOT" chpasswd
-chroot "$INSTALLED_ROOT" usermod --comment "$FULL_NAME" "$USERNAME"
-chroot "$INSTALLED_ROOT" id "$USERNAME" >/dev/null
-grep -q '^%wheel ALL=(ALL:ALL) ALL$' "$INSTALLED_ROOT/etc/sudoers.d/10-wheel"
-echo "Created administrator account $USERNAME"
-"#, account_file = account_file, disk = disk);
-                        let account_result = tokio::process::Command::new("pkexec")
-                            .args(["bash", "-c", &account_cmd])
-                            .output()
-                            .await;
-                        match account_result {
-                            Ok(output) if output.status.success() => {
-                                let _ = sender.send("Administrator account created successfully.".to_string());
-                            }
-                            Ok(output) => {
-                                let stderr = String::from_utf8_lossy(&output.stderr);
-                                let _ = sender.send(format!("ERROR: Account creation failed: {}", stderr.trim()));
-                                let _ = sender.send("EOF_ERROR".to_string());
-                                return;
-                            }
-                            Err(error) => {
-                                let _ = sender.send(format!("ERROR: Could not start account creation: {}", error));
-                                let _ = sender.send("EOF_ERROR".to_string());
-                                return;
-                            }
-                        }
-
+                        let _ = sender.send("Initial administrator account queued for first boot.".to_string());
                         let unmount_cmd = "umount -l /tmp/efi_mnt 2>/dev/null || true; \
                                            umount -l /tmp/root_mnt/boot 2>/dev/null || true; \
                                            umount -l /tmp/root_mnt 2>/dev/null || true";
