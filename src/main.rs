@@ -2922,7 +2922,7 @@ DEPLOY_PATH=$(find /tmp/root_mnt/ostree/deploy/default/deploy -mindepth 1 -maxde
 } < "$ACCOUNT_FILE"
 [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] || { echo "Invalid username"; exit 1; }
 [[ -n "$FULL_NAME" && -n "$PASSWORD" && "$PASSWORD" != *:* ]] || { echo "Invalid account details"; exit 1; }
-chroot "$DEPLOY_PATH" useradd --create-home --groups wheel --shell /bin/bash "$USERNAME"
+chroot "$DEPLOY_PATH" useradd --no-create-home --groups wheel --shell /bin/bash "$USERNAME"
 printf '%s:%s\n' "$USERNAME" "$PASSWORD" | chroot "$DEPLOY_PATH" chpasswd
 chroot "$DEPLOY_PATH" usermod --comment "$FULL_NAME" "$USERNAME"
 chroot "$DEPLOY_PATH" id "$USERNAME" >/dev/null
