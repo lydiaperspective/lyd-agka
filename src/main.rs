@@ -1848,7 +1848,6 @@ fn build_ui(app: &Application) {
     let scroll_box = Box::new(Orientation::Vertical, 12);
     let scroll_conf = ScrolledWindow::builder().child(&scroll_box).vexpand(true).build();
     scroll_box.append(&grp_kernel);
-    scroll_box.append(&apex_hardened_warning);
     scroll_box.append(&grp_zram);
     
     content2.append(&scroll_conf);
