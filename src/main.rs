@@ -2563,7 +2563,7 @@ fn build_ui(app: &Application) {
                       printf '%s /var/lib/flatpak btrfs subvol=@flatpak,compress=zstd,noatime,nofail 0 0\\n' \"$ROOT_FS_SPEC\" >> $DEPLOY_ETC/fstab && \
                       printf '%s /var/lib/containers btrfs subvol=@containers,compress=zstd,noatime,nofail 0 0\\n' \"$ROOT_FS_SPEC\" >> $DEPLOY_ETC/fstab && \
                       mkdir -p $DEPLOY_ROOT/boot/efi && \\
-                      printf 'UUID=%s /boot/efi    vfat  umask=0077 0 2\\\\n' $EFI_UUID >> $DEPLOY_ETC/fstab && \
+                      printf 'UUID=%s /boot/efi    vfat  umask=0077 0 2\\n' $EFI_UUID >> $DEPLOY_ETC/fstab && \
                       if [ \"$ROOT_DEV\" != \"$ROOT_PART\" ]; then \
                         mkdir -p /mnt/var/lib && \
                         cryptsetup luksHeaderBackup \"$ROOT_PART\" --header-backup-file /mnt/var/lib/luks-header.backup && \
