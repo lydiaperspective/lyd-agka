@@ -2138,8 +2138,8 @@ fn build_ui(app: &Application) {
             let first_ok = chars.next().map(|c| c.is_ascii_lowercase() || c == '_').unwrap_or(false);
             let rest_ok = chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-');
             let username_ok = !username.is_empty() && username.len() <= 32 && first_ok && rest_ok;
-            let name_ok = !full_name.trim().is_empty() && !full_name.contains('\\n') && !full_name.contains('\\r');
-            let password_ok = password.len() >= 8 && !password.contains(':') && !password.contains('\\n') && !password.contains('\\r');
+            let name_ok = !full_name.trim().is_empty() && !full_name.contains('\n') && !full_name.contains('\r');
+            let password_ok = password.len() >= 8 && !password.contains(':') && !password.contains('\n') && !password.contains('\r');
             let valid = username_ok && name_ok && password_ok && password == confirmation;
             let message = if !username_ok {
                 "Use 1–32 lowercase letters, numbers, underscores or hyphens; start with a letter or underscore."
@@ -2472,7 +2472,7 @@ fn build_ui(app: &Application) {
 
         // Keep account credentials out of shell arguments and installer logs.
         let account_file = format!("/tmp/.ark-account-{}", std::process::id());
-        let account_contents = format!("{}\\n{}\\n{}\\n", username, full_name, user_password);
+        let account_contents = format!("{}\n{}\n{}\n", username, full_name, user_password);
         if let Err(error) = std::fs::write(&account_file, account_contents)
             .and_then(|_| {
                 use std::os::unix::fs::PermissionsExt;
