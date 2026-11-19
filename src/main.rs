@@ -2689,7 +2689,8 @@ fn build_ui(app: &Application) {
                       ACCOUNT_FILE="{account_file}" && \\
                       {{ IFS= read -r USERNAME; IFS= read -r FULL_NAME; IFS= read -r PASSWORD; }} < "$ACCOUNT_FILE" && \\
                       [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] && \\
-                      [[ -n "$FULL_NAME" && -n "$PASSWORD" && "$PASSWORD" != *:* && "$PASSWORD" != *$(printf '%s' "$PASSWORD" | openssl passwd -6 -stdin) && \\
+                      [[ -n "$FULL_NAME" && -n "$PASSWORD" && "$PASSWORD" != *:* ]] && \\
+                      PASSWORD_HASH=$(printf '%s' "$PASSWORD" | openssl passwd -6 -stdin) && \\
                       [[ "$PASSWORD_HASH" == '$6$'* ]] && \\
                       umask 077 && install -d -m 0700 /mnt/var/lib/ark-installer && \\
                       printf '%s\\n%s\\n%s\\n' "$USERNAME" "$FULL_NAME" "$PASSWORD_HASH" > /mnt/var/lib/ark-installer/pending-account && \\
