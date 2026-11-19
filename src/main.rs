@@ -2528,13 +2528,11 @@ fn build_ui(app: &Application) {
                        mount -t btrfs -o subvol=@log-user $ROOT_DEV /mnt/var/log/user && \
                        mount -t btrfs -o subvol=@flatpak $ROOT_DEV /mnt/var/lib/flatpak && \
                        mount -t btrfs -o subvol=@containers $ROOT_DEV /mnt/var/lib/containers && \
-                       mkdir -p /mnt/boot && mount \"$EFI_PART\" /mnt/boot && \
-                       _bootc_ok=0; \
-                       for _try in 1 2 3 4 5 6; do \
-                         bootc install to-filesystem --source-imgref docker://$_image --bootloader none /mnt && {{ _bootc_ok=1; break; }}; \
-                         echo \"bootc install attempt $_try/6 (GHCR KDE image) failed, retrying in 5s...\"; sleep 5; \
-                       done; \
-                       [ \"$_bootc_ok\" = 1 ] || {{ echo \"ERROR: bootc install failed after 6 total attempts\"; exit 1; }} && \
+                       mkdir -p /mnt/boot/efi && mount \\\"$EFI_PART\\\" /mnt/boot/efi && \\
+                       bootc install to-filesystem --source-imgref docker://$_image --bootloader none /mnt || {{ \\
+                         echo "ERROR: bootc install failed. The target has been partially initialized; rerun the installer to reformat it before trying again." >&2; \\
+                         exit 1; \\
+                       }} && \\
                       mkdir -p /tmp/rw_root && \
                       mount -t btrfs -o subvol=@ $ROOT_DEV /tmp/rw_root && \
                       DEPLOY_ETC=$(ls -d /tmp/rw_root/ostree/deploy/default/deploy/*/etc | head -n 1) && \
@@ -2564,7 +2562,8 @@ fn build_ui(app: &Application) {
                       printf '%s /var/log/user btrfs subvol=@log-user,compress=zstd,noatime,nofail 0 0\\n' \"$ROOT_FS_SPEC\" >> $DEPLOY_ETC/fstab && \
                       printf '%s /var/lib/flatpak btrfs subvol=@flatpak,compress=zstd,noatime,nofail 0 0\\n' \"$ROOT_FS_SPEC\" >> $DEPLOY_ETC/fstab && \
                       printf '%s /var/lib/containers btrfs subvol=@containers,compress=zstd,noatime,nofail 0 0\\n' \"$ROOT_FS_SPEC\" >> $DEPLOY_ETC/fstab && \
-                      printf 'UUID=%s /boot        vfat  umask=0077 0 2\\n' \"$EFI_UUID\" >> $DEPLOY_ETC/fstab && \
+                      mkdir -p \\\"$DEPLOY_ROOT/boot/efi\\\" && \\
+                      printf 'UUID=%s /boot/efi    vfat  umask=0077 0 2\\\\n' \\\"$EFI_UUID\\\" >> $DEPLOY_ETC/fstab && \
                       if [ \"$ROOT_DEV\" != \"$ROOT_PART\" ]; then \
                         mkdir -p /mnt/var/lib && \
                         cryptsetup luksHeaderBackup \"$ROOT_PART\" --header-backup-file /mnt/var/lib/luks-header.backup && \
@@ -2607,7 +2606,7 @@ fn build_ui(app: &Application) {
                       chmod 1777 /mnt/var/games && \
                       chmod 1777 /mnt/var/log/user && \
                       umount -l /tmp/rw_root && \
-                       umount -l /mnt/boot && umount -l /mnt/nix && umount -l /mnt/agents && umount -l /mnt/orundum && \
+                       umount -l /mnt/boot/efi && umount -l /mnt/nix && umount -l /mnt/agents && umount -l /mnt/orundum && \
                       umount -l /mnt/var/share && umount -l /mnt/var/games && umount -l /mnt/var/log/user && \
                       umount -l /mnt/var/lib/flatpak && umount -l /mnt/var/lib/containers && \
                       umount -l /mnt/opt && umount -l /mnt/.snapshots && \
