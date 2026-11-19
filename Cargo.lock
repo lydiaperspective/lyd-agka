@@ -10,7 +10,6 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "reqwest",
- "semver",
  "tokio",
 ]
 
