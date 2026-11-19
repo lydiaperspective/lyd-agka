@@ -2922,9 +2922,15 @@ fn build_ui(app: &Application) {
 
                         let account_cmd = format!(r#"set -euo pipefail
 ACCOUNT_FILE="{account_file}"
-trap 'rm -f "$ACCOUNT_FILE"' EXIT
-DEPLOY_PATH=$(find /tmp/root_mnt/ostree/deploy/default/deploy -mindepth 1 -maxdepth 1 -type d -name '*.0' | head -n1)
-[ -n "$DEPLOY_PATH" ] || {{ echo "Could not locate installed deployment"; exit 1; }}
+INSTALLED_ROOT=/tmp/ark-installed-root
+ROOT_PART=$(lsblk -rno PATH,FSTYPE {disk} | awk '$2 == "btrfs" {{ print $1; exit }}')
+[ -b "$ROOT_PART" ] || {{ echo "Could not identify the installed Btrfs root device"; exit 1; }}
+cleanup_account_mount() {{
+    umount -R "$INSTALLED_ROOT" 2>/dev/null || true
+    rmdir "$INSTALLED_ROOT" 2>/dev/null || true
+    rm -f "$ACCOUNT_FILE"
+}}
+trap cleanup_account_mount EXIT
 {{
     IFS= read -r USERNAME
     IFS= read -r FULL_NAME
@@ -2932,13 +2938,253 @@ DEPLOY_PATH=$(find /tmp/root_mnt/ostree/deploy/default/deploy -mindepth 1 -maxde
 }} < "$ACCOUNT_FILE"
 [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] || {{ echo "Invalid username"; exit 1; }}
 [[ -n "$FULL_NAME" && -n "$PASSWORD" && "$PASSWORD" != *:* ]] || {{ echo "Invalid account details"; exit 1; }}
-chroot "$DEPLOY_PATH" useradd --no-create-home --groups wheel --shell /bin/bash "$USERNAME"
-printf '%s:%s\n' "$USERNAME" "$PASSWORD" | chroot "$DEPLOY_PATH" chpasswd
-chroot "$DEPLOY_PATH" usermod --comment "$FULL_NAME" "$USERNAME"
-chroot "$DEPLOY_PATH" id "$USERNAME" >/dev/null
-grep -q '^%wheel ALL=(ALL:ALL) ALL$' "$DEPLOY_PATH/etc/sudoers.d/10-wheel"
+
+# A raw chroot into an OSTree/composefs deployment exposes the immutable image
+# /etc. Use bootc's supported offline mount helper to assemble the deployment
+# with its writable, persistent /etc and /var state.
+mkdir -p "$INSTALLED_ROOT"
+bootc install mount --sysroot=/tmp/root_mnt --latest "$INSTALLED_ROOT"
+
+# Ark keeps /var on its own Btrfs subvolume, so attach it over bootc's default
+# shared-var mount before changing account state.
+mkdir -p "$INSTALLED_ROOT/var"
+mount -t btrfs -o subvol=@var "$ROOT_PART" "$INSTALLED_ROOT/var"
+
+chroot "$INSTALLED_ROOT" useradd --no-create-home --groups wheel --shell /bin/bash "$USERNAME"
+printf '%s:%s\n' "$USERNAME" "$PASSWORD" | chroot "$INSTALLED_ROOT" chpasswd
+chroot "$INSTALLED_ROOT" usermod --comment "$FULL_NAME" "$USERNAME"
+chroot "$INSTALLED_ROOT" id "$USERNAME" >/dev/null
+grep -q '^%wheel ALL=(ALL:ALL) ALL
+                        let account_result = tokio::process::Command::new("pkexec")
+                            .args(["bash", "-c", &account_cmd])
+                            .output()
+                            .await;
+                        match account_result {
+                            Ok(output) if output.status.success() => {
+                                let _ = sender.send("Administrator account created successfully.".to_string());
+                            }
+                            Ok(output) => {
+                                let stderr = String::from_utf8_lossy(&output.stderr);
+                                let _ = sender.send(format!("ERROR: Account creation failed: {}", stderr.trim()));
+                                let _ = sender.send("EOF_ERROR".to_string());
+                                return;
+                            }
+                            Err(error) => {
+                                let _ = sender.send(format!("ERROR: Could not start account creation: {}", error));
+                                let _ = sender.send("EOF_ERROR".to_string());
+                                return;
+                            }
+                        }
+
+                        let unmount_cmd = "umount -l /tmp/efi_mnt 2>/dev/null || true; \
+                                           umount -l /tmp/root_mnt/boot 2>/dev/null || true; \
+                                           umount -l /tmp/root_mnt 2>/dev/null || true";
+                        let _ = tokio::process::Command::new("pkexec")
+                            .args(["bash", "-c", unmount_cmd])
+                            .output()
+                            .await;
+
+                        let _ = sender.send("EOF_SUCCESS".to_string());
+                    },
+                    _ => {
+                        let _ = std::fs::remove_file(&account_file);
+                        let _ = sender.send("EOF_ERROR".to_string());
+                    }
+                }
+            });
+        });
+    }));
+    
+    stay_btn.connect_clicked(|_| {
+        std::process::exit(0);
+    });
+    
+    reboot_btn.connect_clicked(|_| {
+        let _ = std::process::Command::new("sudo").arg("reboot").status();
+    });
+
+    main_toolbar.set_content(Some(&stack));
+    window.set_content(Some(&main_toolbar));
+
+    drawer_toolbar.set_content(Some(&drawer_stack));
+    drawer_win.set_child(Some(&drawer_toolbar));
+
+    window.present();
+}
+
+fn extract_val(line: &str, key: &str) -> String {
+    let k = format!("{}=\"", key);
+    if let Some(start) = line.find(&k) {
+        let sub = &line[start + k.len()..];
+        if let Some(end) = sub.find('"') {
+            return sub[..end].to_string();
+        }
+    }
+    String::new()
+}
+
+const MIN_DISK_BYTES: u64 = 20 * 1024 * 1024 * 1024;
+
+fn format_bytes(bytes: u64) -> String {
+    const GIB: u64 = 1024 * 1024 * 1024;
+    const MIB: u64 = 1024 * 1024;
+    if bytes >= GIB {
+        format!("{:.1} GB", bytes as f64 / GIB as f64)
+    } else {
+        format!("{:.0} MB", bytes as f64 / MIB as f64)
+    }
+}
+
+fn get_host_drives() -> Vec<String> {
+    let mut drives = Vec::new();
+    if let Ok(findmnt) = std::process::Command::new("findmnt").args(["-n", "-v", "-o", "SOURCE", "/"]).output() {
+        let source = String::from_utf8_lossy(&findmnt.stdout).trim().to_string();
+        if !source.is_empty() {
+            if let Ok(lsblk) = std::process::Command::new("lsblk").args(["-s", "-n", "-P", "-o", "NAME,TYPE", &source]).output() {
+                let stdout = String::from_utf8_lossy(&lsblk.stdout);
+                for line in stdout.lines() {
+                    if line.contains("TYPE=\"disk\"") {
+                        let name = extract_val(line, "NAME");
+                        if !name.is_empty() {
+                            drives.push(name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    drives
+}
+
+fn sanitize_log(raw: &str) -> Option<(Option<u32>, String)> {
+    if raw.trim().is_empty() {
+        return None;
+    }
+    
+    let trimmed = raw.trim();
+    let lower = trimmed.to_lowercase();
+    
+    let mut extracted_pct = None;
+    if let Some(idx) = lower.find('%') {
+        let mut start = idx;
+        let bytes = lower.as_bytes();
+        while start > 0 && bytes[start - 1].is_ascii_digit() {
+            start -= 1;
+        }
+        if start < idx {
+            if let Ok(val) = lower[start..idx].parse::<u32>() {
+                extracted_pct = Some(val);
+            }
+        }
+    }
+    
+    let hide_prefixes = [
+        "Wiping",
+        "Block setup:",
+        "Size:",
+        "Serial:",
+        "Model:",
+        "Partitions:",
+        "Disk /dev",
+        "Disk model:",
+        "Units:",
+        "Sector size",
+        "I/O size",
+        ">>> Script header",
+        "New situation:",
+        "Disklabel type:",
+        "Disk identifier:",
+        "Device", // matches "Device       Start"
+        "The partition table has been altered",
+        "Calling ioctl()",
+        "Syncing disks",
+        "> mkfs",
+        "layers already present",
+        "Bootloader:",
+        "Checking that no-one is using this disk",
+        "/dev/",
+        "program: \"",
+        "args: [",
+        "create_pidfd:",
+        "\"/dev/"
+    ];
+    
+    for prefix in hide_prefixes.iter() {
+        if trimmed.starts_with(prefix) {
+            return None;
+        }
+    }
+    
+    let hide_exact = [
+        "}",
+        "],",
+        "\"wipefs\",",
+        "\"-a\","
+    ];
+    for ext in hide_exact.iter() {
+        if trimmed == *ext {
+            return None;
+        }
+    }
+    
+    if lower.contains("bytes were erased") || lower.contains("calling ioctl") || lower.contains("failed to run command") || lower.contains("command {") {
+        return None;
+    }
+
+    // 2. Whitelist and translate friendly messages
+    if lower.contains("installing image:") {
+        return Some((Some(5), "Starting installation process...".to_string()));
+    }
+    if lower.contains("created a new gpt disklabel") {
+        return Some((Some(15), "Configuring partition tables...".to_string()));
+    }
+    if lower.contains("creating root filesystem") {
+        return Some((Some(30), "Formatting system partitions...".to_string()));
+    }
+    if lower.contains("creating esp filesystem") {
+        return Some((Some(40), "Formatting boot partition...".to_string()));
+    }
+    if lower.contains("initializing ostree layout") {
+        return Some((Some(50), "Initializing immutable system layout...".to_string()));
+    }
+    if lower.contains("deploying container image") {
+        return Some((Some(70), "Deploying operating system image (this may take a while)...".to_string()));
+    }
+    
+    // 3. Error handling
+    if lower.contains("error:") || lower.contains("failed") {
+        if lower.contains("network is unreachable") {
+            return Some((None, "Installation Error: Network unreachable. Please check your internet connection and try again.".to_string()));
+        }
+        if lower.contains("unexpected end of file") {
+            return Some((None, "Installation Error: Failed to pull OS image from registry (unexpected EOF). This is usually a transient registry error — please try again.".to_string()));
+        }
+        if lower.contains("device is mounted") || lower.contains("is mounted") || lower.contains("resource busy") || lower.contains("device or resource busy") {
+            return Some((None, "Installation Error: The target drive is currently busy. Please reboot and try again.".to_string()));
+        }
+        if lower.contains("bootupd is required") {
+            return Some((None, "Installation Error: Missing bootloader components (bootupd).".to_string()));
+        }
+        
+        // Fallback error cleaner
+        if let Some(idx) = lower.find("error:") {
+            let clean = trimmed[idx..].to_string();
+            let mut chars = clean.chars();
+            let cap = match chars.next() {
+                None => String::new(),
+                Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
+            };
+            return Some((None, format!("Installation Failed: {}", cap)));
+        }
+        return Some((None, format!("Installation Failed: {}", trimmed)));
+    }
+
+    // Pass through anything that isn't matched
+    Some((extracted_pct, trimmed.to_string()))
+}
+ "$INSTALLED_ROOT/etc/sudoers.d/10-wheel"
 echo "Created administrator account $USERNAME"
-"#, account_file = account_file);
+"#, account_file = account_file, disk = disk);
                         let account_result = tokio::process::Command::new("pkexec")
                             .args(["bash", "-c", &account_cmd])
                             .output()
