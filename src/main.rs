@@ -2380,7 +2380,10 @@ fn build_ui(app: &Application) {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
                 let bootc_cmd = format!(
-                    "pkill -9 udisksd gvfs-udisks2-volume-monitor gvfsd 2>/dev/null || true; \
+                    "_image=\"ghcr.io/lydiaperspective/lyd-ark-image:{variant}\"; \
+                     echo \"Checking availability of $_image before modifying the target disk...\"; \
+                     skopeo inspect --raw \"docker://$_image\" >/dev/null || {{ echo \"ERROR: OS image $_image is unavailable or cannot be reached. The target disk has not been modified.\"; exit 1; }}; \
+                     pkill -9 udisksd gvfs-udisks2-volume-monitor gvfsd 2>/dev/null || true; \
                      killall -9 bootc skopeo 2>/dev/null || true; \
                      grep -E '^{disk}' /proc/mounts | awk '{{print $2}}' | sort -r | \
                        while read _mp; do umount -f \"$_mp\" 2>/dev/null || umount -l \"$_mp\" 2>/dev/null || true; done; \
@@ -2491,14 +2494,13 @@ fn build_ui(app: &Application) {
                        mount -t btrfs -o subvol=@log-user $ROOT_DEV /mnt/var/log/user && \
                        mount -t btrfs -o subvol=@flatpak $ROOT_DEV /mnt/var/lib/flatpak && \
                        mount -t btrfs -o subvol=@containers $ROOT_DEV /mnt/var/lib/containers && \
+                       mkdir -p /mnt/boot && mount \"$EFI_PART\" /mnt/boot && \
                        _bootc_ok=0; \
-                       _image=\"ghcr.io/lydiaperspective/lyd-ark-image:{variant}\"; \
                        for _try in 1 2 3 4 5 6; do \
                          bootc install to-filesystem --source-imgref docker://$_image --bootloader none /mnt && {{ _bootc_ok=1; break; }}; \
                          echo \"bootc install attempt $_try/6 (GHCR KDE image) failed, retrying in 5s...\"; sleep 5; \
                        done; \
                        [ \"$_bootc_ok\" = 1 ] || {{ echo \"ERROR: bootc install failed after 6 total attempts\"; exit 1; }} && \
-                      mount $EFI_PART /mnt/boot && \
                       mkdir -p /tmp/rw_root && \
                       mount -t btrfs -o subvol=@ $ROOT_DEV /tmp/rw_root && \
                       DEPLOY_ETC=$(ls -d /tmp/rw_root/ostree/deploy/default/deploy/*/etc | head -n 1) && \
