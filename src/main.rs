@@ -2924,6 +2924,7 @@ fn build_ui(app: &Application) {
 ACCOUNT_FILE="{account_file}"
 INSTALLED_ROOT=/tmp/ark-installed-root
 ROOT_PART=$(lsblk -rno PATH,FSTYPE {disk} | awk '$2 == "btrfs" {{ print $1; exit }}')
+if [[ -z "$ROOT_PART" && -b /dev/mapper/ark-root ]]; then ROOT_PART=/dev/mapper/ark-root; fi
 [ -b "$ROOT_PART" ] || {{ echo "Could not identify the installed Btrfs root device"; exit 1; }}
 cleanup_account_mount() {{
     umount -R "$INSTALLED_ROOT" 2>/dev/null || true
@@ -2949,6 +2950,8 @@ bootc install mount --sysroot=/tmp/root_mnt --latest "$INSTALLED_ROOT"
 # shared-var mount before changing account state.
 mkdir -p "$INSTALLED_ROOT/var"
 mount -t btrfs -o subvol=@var "$ROOT_PART" "$INSTALLED_ROOT/var"
+[ -w "$INSTALLED_ROOT/etc" ] || {{ echo "bootc did not provide a writable installed /etc"; exit 1; }}
+[ -w "$INSTALLED_ROOT/var" ] || {{ echo "Installed /var is not writable"; exit 1; }}
 
 chroot "$INSTALLED_ROOT" useradd --no-create-home --groups wheel --shell /bin/bash "$USERNAME"
 printf '%s:%s\n' "$USERNAME" "$PASSWORD" | chroot "$INSTALLED_ROOT" chpasswd
