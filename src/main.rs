@@ -2954,7 +2954,7 @@ mount -t btrfs -o subvol=@var "$ROOT_PART" "$INSTALLED_ROOT/var"
 [ -w "$INSTALLED_ROOT/var" ] || {{ echo "Installed /var is not writable"; exit 1; }}
 
 chroot "$INSTALLED_ROOT" useradd --no-create-home --groups wheel --shell /bin/bash "$USERNAME"
-printf '%s:%s\\n' "$USERNAME" "$PASSWORD" | chroot "$INSTALLED_ROOT" chpasswd
+printf '%s:%s\n' "$USERNAME" "$PASSWORD" | chroot "$INSTALLED_ROOT" chpasswd
 chroot "$INSTALLED_ROOT" usermod --comment "$FULL_NAME" "$USERNAME"
 chroot "$INSTALLED_ROOT" id "$USERNAME" >/dev/null
 grep -q '^%wheel ALL=(ALL:ALL) ALL$' "$INSTALLED_ROOT/etc/sudoers.d/10-wheel"
