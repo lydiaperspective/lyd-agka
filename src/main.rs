@@ -2000,10 +2000,14 @@ fn build_ui(app: &Application) {
     }));
 
     // Passphrase validation + strength indicator
-    let validate_pass = clone!(#[weak] pass_entry, #[weak] pass_confirm, #[weak] strength_label, #[weak] next_btn_enc, #[strong] target_passphrase , move || {
+    let validate_pass = clone!(#[weak] pass_entry, #[weak] pass_confirm, #[weak] strength_label, #[weak] next_btn_enc, #[weak] enc_switch, #[strong] target_passphrase , move || {
         let pass = pass_entry.text().as_str().to_string();
         let confirm = pass_confirm.text().as_str().to_string();
-        let mut valid = !pass.is_empty() && pass == confirm;
+        let mut valid = if enc_switch.is_active() {
+            !pass.is_empty() && pass == confirm
+        } else {
+            true
+        };
         *target_passphrase.borrow_mut() = pass.clone();
 
         if confirm.is_empty() {
@@ -2053,6 +2057,10 @@ fn build_ui(app: &Application) {
     pass_confirm.connect_changed(clone!(#[strong] validate_pass , move |_| {
         validate_pass();
     }));
+    enc_switch.connect_active_notify(clone!(#[strong] validate_pass, move |_| {
+        validate_pass();
+    }));
+    validate_pass();
 
     // Next button: save state + advance
     next_btn_enc.connect_clicked(clone!(#[weak] drawer_stack, #[strong] target_encryption, #[strong] target_enc_mode, #[strong] target_passphrase, #[weak] enc_switch, #[weak] pass_entry , move |_| {
