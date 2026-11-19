@@ -2686,19 +2686,19 @@ fn build_ui(app: &Application) {
                          echo 'ERROR: bootc install failed. Target partially initialized; rerun installer to reformat before retrying.' >&2; \\
                          exit 1; \\
                        }} && \\
-                      if ! mountpoint -q /mnt/var; then mount -t btrfs -o subvol=@var "$ROOT_DEV" /mnt/var; fi && \
+                      if ! mountpoint -q /mnt/var; then mount -t btrfs -o subvol=@var \"$ROOT_DEV\" /mnt/var; fi && \
                       VAR_FSROOT=$(findmnt -rn -M /mnt/var -o FSROOT) && \
-                      [ "$VAR_FSROOT" = "/@var" ] || {{ echo "ERROR: The persistent @var subvolume is not mounted at /mnt/var"; exit 1; }} && \
-                      ACCOUNT_FILE="{account_file}" && \
-                      {{ IFS= read -r USERNAME; IFS= read -r FULL_NAME; IFS= read -r PASSWORD; }} < "$ACCOUNT_FILE" && \
-                      [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] && \
-                      [[ -n "$FULL_NAME" && -n "$PASSWORD" && "$PASSWORD" != *:* ]] && \
-                      PASSWORD_HASH=$(printf '%s' "$PASSWORD" | openssl passwd -6 -stdin) && \
-                      [[ "$PASSWORD_HASH" == '$6$'* ]] && \
+                      [ \"$VAR_FSROOT\" = \"/@var\" ] || {{ echo \"ERROR: The persistent @var subvolume is not mounted at /mnt/var\"; exit 1; }} && \
+                      ACCOUNT_FILE=\"{account_file}\" && \
+                      {{ IFS= read -r USERNAME; IFS= read -r FULL_NAME; IFS= read -r PASSWORD; }} < \"$ACCOUNT_FILE\" && \
+                      [[ \"$USERNAME\" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] && \
+                      [[ -n \"$FULL_NAME\" && -n \"$PASSWORD\" && \"$PASSWORD\" != *:* ]] && \
+                      PASSWORD_HASH=$(printf '%s' \"$PASSWORD\" | openssl passwd -6 -stdin) && \
+                      [[ \"$PASSWORD_HASH\" == '$6$'* ]] && \
                       umask 077 && install -d -m 0700 /mnt/var/lib/ark-installer && \
-                      printf '%s\\n%s\\n%s\\n' "$USERNAME" "$FULL_NAME" "$PASSWORD_HASH" > /mnt/var/lib/ark-installer/pending-account && \
+                      printf '%s\\n%s\\n%s\\n' \"$USERNAME\" \"$FULL_NAME\" \"$PASSWORD_HASH\" > /mnt/var/lib/ark-installer/pending-account && \
                       chmod 0600 /mnt/var/lib/ark-installer/pending-account && \
-                      rm -f "$ACCOUNT_FILE" && \
+                      rm -f \"$ACCOUNT_FILE\" && \
                       mkdir -p /tmp/rw_root && \
                       mount -t btrfs -o subvol=@ $ROOT_DEV /tmp/rw_root && \
                       DEPLOY_ETC=$(ls -d /tmp/rw_root/ostree/deploy/default/deploy/*/etc | head -n 1) && \
