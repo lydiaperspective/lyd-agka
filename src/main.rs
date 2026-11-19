@@ -2479,8 +2479,14 @@ fn build_ui(app: &Application) {
                 std::fs::set_permissions(&account_file, std::fs::Permissions::from_mode(0o600))
             })
         {
-            let _ = sender.send(format!("ERROR: Could not securely stage account details: {}", error));
-            let _ = sender.send("EOF_ERROR".to_string());
+            if let Some(id) = pulse_timeout.borrow_mut().take() {
+                id.remove();
+            }
+            progress_bar.add_css_class("error");
+            cancel_btn.set_label("Back to Menu");
+            cancel_btn.remove_css_class("destructive-action");
+            cancel_btn.add_css_class("suggested-action");
+            text_view.buffer().set_text(&format!("Could not securely stage account details: {}\\n\\n[Installation Failed]", error));
             return;
         }
         
@@ -2770,6 +2776,7 @@ fn build_ui(app: &Application) {
                     tokio::select! {
                         _ = &mut kill_rx => {
                             let _ = child_install.kill().await;
+                            let _ = std::fs::remove_file(&account_file);
                             
                             let _ = sender.send("Cleaning up and formatting drive to unallocated state...".to_string());
                             let cleanup_cmd = format!(
@@ -2954,6 +2961,7 @@ echo "Created administrator account $USERNAME"
                         let _ = sender.send("EOF_SUCCESS".to_string());
                     },
                     _ => {
+                        let _ = std::fs::remove_file(&account_file);
                         let _ = sender.send("EOF_ERROR".to_string());
                     }
                 }
