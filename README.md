@@ -1,15 +1,17 @@
 # Alga
 
-Ark Linux's graphical installer and system updater. Built with Rust, GTK4, and Libadwaita.
+Ark Linux's graphical installer and system updater. Built with Rust, GTK4, and Libadwaita, and designed to run on the KDE Plasma desktop.
 
 ## Features
 
 - Install Ark Linux to disk (UEFI only — systemd-boot or GRUB2)
 - System update via `bootc upgrade` with live progress
 - App self-update from the About page
-- Configurable periodic update checks (app + OS) with native GNOME notifications
+- Configurable periodic update checks (app + OS) with desktop notifications
 - BLS boot entry sync after every upgrade — always shows current + rollback deployment in boot menu
 - Network connectivity check on launch
+- Create the first administrator account during installation (wheel group / sudo access)
+- Configure the installed system for first-login home-directory creation
 
 ## Disk Layout
 
@@ -60,7 +62,7 @@ Installs alga and all required dependencies automatically. Supports Arch, Ubuntu
 | Package | Purpose |
 |---------|---------|
 | `gtk4` | UI toolkit |
-| `libadwaita` | GNOME UI components |
+| `libadwaita` | GTK application UI widgets and adaptive layout components |
 | `polkit` | Privilege escalation (`pkexec`) |
 | `bootc` | OS install and upgrade |
 | `ostree` | Deployment management |
