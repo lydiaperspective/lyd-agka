@@ -1672,9 +1672,6 @@ fn build_ui(app: &Application) {
     let target_enc_mode = Rc::new(RefCell::new(String::from("passphrase")));
     let target_passphrase = Rc::new(RefCell::new(String::new()));
     let target_recovery_key = Rc::new(RefCell::new(String::new()));
-    let target_username = Rc::new(RefCell::new(String::new()));
-    let target_full_name = Rc::new(RefCell::new(String::new()));
-    let target_user_password = Rc::new(RefCell::new(String::new()));
     let cancel_sender: Rc<RefCell<Option<oneshot::Sender<()>>>> = Rc::new(RefCell::new(None));
     let pulse_timeout: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
 
@@ -2068,122 +2065,8 @@ fn build_ui(app: &Application) {
         *target_encryption.borrow_mut() = on;
         *target_enc_mode.borrow_mut() = if on { "passphrase" } else { "" }.to_string();
         *target_passphrase.borrow_mut() = if on { pass_entry.text().as_str().to_string() } else { String::new() };
-        drawer_stack.set_visible_child_name("page_user");
+        drawer_stack.set_visible_child_name("page4");
     }));
-
-    // --- User Account Page ---
-    let page_user_box = Box::new(Orientation::Vertical, 0);
-    let content_user = Box::new(Orientation::Vertical, 16);
-    content_user.set_margin_top(24);
-    content_user.set_margin_bottom(24);
-    content_user.set_margin_start(24);
-    content_user.set_margin_end(24);
-    content_user.set_vexpand(true);
-
-    let user_title = Label::builder().label("<b>Create Your Account</b>").use_markup(true).halign(gtk::Align::Start).build();
-    user_title.add_css_class("title-2");
-    let user_description = Label::builder()
-        .label("Create the first administrator account for your Lyd Ark system. You will use this account to sign in to KDE.")
-        .wrap(true).halign(gtk::Align::Start).build();
-
-    let user_group = PreferencesGroup::new();
-    let username_entry = Entry::builder().placeholder_text("Username (lowercase, e.g. alex)").hexpand(true).build();
-    username_entry.set_max_length(32);
-    let username_row = ActionRow::builder().title("Username").build();
-    username_row.add_suffix(&username_entry);
-    user_group.add(&username_row);
-
-    let full_name_entry = Entry::builder().placeholder_text("Your display name").hexpand(true).build();
-    full_name_entry.set_max_length(64);
-    let full_name_row = ActionRow::builder().title("Display name").build();
-    full_name_row.add_suffix(&full_name_entry);
-    user_group.add(&full_name_row);
-
-    let user_password_entry = Entry::builder().placeholder_text("At least 8 characters").visibility(false).hexpand(true).build();
-    let user_password_row = ActionRow::builder().title("Password").build();
-    user_password_row.add_suffix(&user_password_entry);
-    user_group.add(&user_password_row);
-
-    let user_password_confirm_entry = Entry::builder().placeholder_text("Enter the password again").visibility(false).hexpand(true).build();
-    let user_password_confirm_row = ActionRow::builder().title("Confirm password").build();
-    user_password_confirm_row.add_suffix(&user_password_confirm_entry);
-    user_group.add(&user_password_confirm_row);
-
-    let user_validation_label = Label::builder()
-        .label("Choose a valid username and enter matching passwords.")
-        .wrap(true).halign(gtk::Align::Start).build();
-    user_validation_label.add_css_class("dim-label");
-
-    content_user.append(&user_title);
-    content_user.append(&user_description);
-    content_user.append(&user_group);
-    content_user.append(&user_validation_label);
-    page_user_box.append(&content_user);
-
-    let footer_user = Box::new(Orientation::Horizontal, 0);
-    footer_user.set_margin_top(16);
-    footer_user.set_margin_bottom(24);
-    footer_user.set_margin_start(24);
-    footer_user.set_margin_end(24);
-    let next_btn_user = Button::builder().label("Next").css_classes(["suggested-action"]).hexpand(true).sensitive(false).build();
-    footer_user.append(&next_btn_user);
-    page_user_box.append(&footer_user);
-    drawer_stack.add_named(&page_user_box, Some("page_user"));
-
-    let validate_user = clone!(
-        #[weak] username_entry,
-        #[weak] full_name_entry,
-        #[weak] user_password_entry,
-        #[weak] user_password_confirm_entry,
-        #[weak] user_validation_label,
-        #[weak] next_btn_user,
-        move || {
-            let username = username_entry.text().to_string();
-            let full_name = full_name_entry.text().to_string();
-            let password = user_password_entry.text().to_string();
-            let confirmation = user_password_confirm_entry.text().to_string();
-            let mut chars = username.chars();
-            let first_ok = chars.next().map(|c| c.is_ascii_lowercase() || c == '_').unwrap_or(false);
-            let rest_ok = chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-');
-            let username_ok = !username.is_empty() && username.len() <= 32 && first_ok && rest_ok;
-            let name_ok = !full_name.trim().is_empty() && !full_name.contains('\n') && !full_name.contains('\r');
-            let password_ok = password.len() >= 8 && !password.contains(':') && !password.contains('\n') && !password.contains('\r');
-            let valid = username_ok && name_ok && password_ok && password == confirmation;
-            let message = if !username_ok {
-                "Use 1–32 lowercase letters, numbers, underscores or hyphens; start with a letter or underscore."
-            } else if !name_ok {
-                "Enter the display name for this account."
-            } else if !password_ok {
-                "Use at least 8 characters. A colon is not supported in the password."
-            } else if password != confirmation {
-                "The passwords do not match."
-            } else {
-                "Account details look good."
-            };
-            user_validation_label.set_text(message);
-            next_btn_user.set_sensitive(valid);
-        }
-    );
-    username_entry.connect_changed(clone!(#[strong] validate_user, move |_| validate_user()));
-    full_name_entry.connect_changed(clone!(#[strong] validate_user, move |_| validate_user()));
-    user_password_entry.connect_changed(clone!(#[strong] validate_user, move |_| validate_user()));
-    user_password_confirm_entry.connect_changed(clone!(#[strong] validate_user, move |_| validate_user()));
-
-    next_btn_user.connect_clicked(clone!(
-        #[weak] drawer_stack,
-        #[weak] username_entry,
-        #[weak] full_name_entry,
-        #[weak] user_password_entry,
-        #[strong] target_username,
-        #[strong] target_full_name,
-        #[strong] target_user_password,
-        move |_| {
-            *target_username.borrow_mut() = username_entry.text().to_string();
-            *target_full_name.borrow_mut() = full_name_entry.text().trim().to_string();
-            *target_user_password.borrow_mut() = user_password_entry.text().to_string();
-            drawer_stack.set_visible_child_name("page4");
-        }
-    ));
 
     // --- Page 4: Detailed Confirmation ---
     let page3_box = Box::new(Orientation::Vertical, 0);
@@ -2352,10 +2235,8 @@ fn build_ui(app: &Application) {
             drawer_win.close();
         } else if current == "page_enc" {
             drawer_stack.set_visible_child_name("page3");
-        } else if current == "page_user" {
-            drawer_stack.set_visible_child_name("page_enc");
         } else if current == "page4" {
-            drawer_stack.set_visible_child_name("page_user");
+            drawer_stack.set_visible_child_name("page_enc");
         }
     }));
     
@@ -2456,10 +2337,6 @@ fn build_ui(app: &Application) {
         let enc_on = target_encryption.borrow().clone();
         let enc_mode = target_enc_mode.borrow().clone();
         let pass = target_passphrase.borrow().clone();
-        let username = target_username.borrow().clone();
-        let full_name = target_full_name.borrow().clone();
-        let user_password = target_user_password.borrow().clone();
-        
         // Write passphrase to temp file for secure shell access
         let keyfile = if enc_on && !pass.is_empty() {
             let path = format!("/tmp/.ark-key-{}", std::process::id());
@@ -2478,28 +2355,6 @@ fn build_ui(app: &Application) {
         let (kill_tx, mut kill_rx) = oneshot::channel::<()>();
         *cancel_sender.borrow_mut() = Some(kill_tx);
 
-        // Keep account credentials out of shell arguments and installer logs.
-        let account_file = format!("/tmp/.ark-account-{}", std::process::id());
-        let account_contents = format!("{}\n{}\n{}\n", username, full_name, user_password);
-        if let Err(error) = std::fs::write(&account_file, account_contents)
-            .and_then(|_| {
-                use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(&account_file, std::fs::Permissions::from_mode(0o600))
-            })
-        {
-            let _ = std::fs::remove_file(&account_file);
-            let _ = cancel_sender.borrow_mut().take();
-            if let Some(id) = pulse_timeout.borrow_mut().take() {
-                id.remove();
-            }
-            progress_bar.add_css_class("error");
-            cancel_btn.set_label("Back to Menu");
-            cancel_btn.remove_css_class("destructive-action");
-            cancel_btn.add_css_class("suggested-action");
-            text_view.buffer().set_text(&format!("Could not securely stage account details: {}\\n\\n[Installation Failed]", error));
-            return;
-        }
-        
         glib::idle_add_local(clone!(#[weak] text_view, #[weak] progress_bar, #[weak] drawer_win, #[weak] stack, #[weak] cancel_btn, #[weak] title4, #[strong] cancel_sender, #[strong] pulse_timeout, #[strong] target_recovery_key , #[upgrade_or] glib::ControlFlow::Continue, move || {
             while let Ok(msg) = receiver.try_recv() {
                 // Capture recovery key
@@ -2563,7 +2418,6 @@ fn build_ui(app: &Application) {
         let install_grub = grub_switch.is_active();
 
         std::thread::spawn(move || {
-            let account_file = account_file;
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
                 let bootc_cmd = format!(
@@ -2686,17 +2540,6 @@ fn build_ui(app: &Application) {
                          echo 'ERROR: bootc install failed. Target partially initialized; rerun installer to reformat before retrying.' >&2; \\
                          exit 1; \\
                        }} && \\
-                      if ! mountpoint -q /mnt/var; then mount -t btrfs -o subvol=@var \"$ROOT_DEV\" /mnt/var; fi && \
-                      VAR_FSROOT=$(findmnt -rn -M /mnt/var -o FSROOT) && \
-                      [ \"$VAR_FSROOT\" = \"/@var\" ] || {{ echo \"ERROR: The persistent @var subvolume is not mounted at /mnt/var\"; exit 1; }} && \
-                      ACCOUNT_FILE=\"{account_file}\" && \
-                      {{ IFS= read -r USERNAME; IFS= read -r FULL_NAME; IFS= read -r PASSWORD; }} < \"$ACCOUNT_FILE\" && \
-                      [[ \"$USERNAME\" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] && \
-                      [[ -n \"$FULL_NAME\" && -n \"$PASSWORD\" && \"$PASSWORD\" != *:* ]] && \
-                      PASSWORD_HASH=$(printf '%s' \"$PASSWORD\" | openssl passwd -6 -stdin) && \
-                      [[ \"$PASSWORD_HASH\" == '$6$'* ]] && \
-                      ( umask 077 && install -d -m 0700 /mnt/var/lib/ark-installer && printf '%s\\n%s\\n%s\\n' \"$USERNAME\" \"$FULL_NAME\" \"$PASSWORD_HASH\" > /mnt/var/lib/ark-installer/pending-account && chmod 0600 /mnt/var/lib/ark-installer/pending-account ) && \
-                      rm -f \"$ACCOUNT_FILE\" && \
                       mkdir -p /tmp/rw_root && \
                       mount -t btrfs -o subvol=@ $ROOT_DEV /tmp/rw_root && \
                       DEPLOY_ETC=$(ls -d /tmp/rw_root/ostree/deploy/default/deploy/*/etc | head -n 1) && \
@@ -2780,8 +2623,7 @@ fn build_ui(app: &Application) {
                      variant = variant,
                      zram = zram_val,
                      keyfile = keyfile,
-                     use_tpm2 = use_tpm2_str,
-                     account_file = account_file
+                     use_tpm2 = use_tpm2_str
                  );
                  
                  let mut child_install = tokio::process::Command::new("pkexec")
@@ -2798,7 +2640,6 @@ fn build_ui(app: &Application) {
                     tokio::select! {
                         _ = &mut kill_rx => {
                             let _ = child_install.kill().await;
-                            let _ = std::fs::remove_file(&account_file);
                             
                             let _ = sender.send("Cleaning up and formatting drive to unallocated state...".to_string());
                             let cleanup_cmd = format!(
@@ -2932,7 +2773,7 @@ fn build_ui(app: &Application) {
                                 .await;
                         }
 
-                        let _ = sender.send("Initial administrator account queued for first boot.".to_string());
+                        let _ = sender.send("Installation complete. Create your administrator account after the first boot.".to_string());
                         let unmount_cmd = "umount -l /tmp/efi_mnt 2>/dev/null || true; \
                                            umount -l /tmp/root_mnt/boot 2>/dev/null || true; \
                                            umount -l /tmp/root_mnt 2>/dev/null || true";
@@ -2944,7 +2785,6 @@ fn build_ui(app: &Application) {
                         let _ = sender.send("EOF_SUCCESS".to_string());
                     },
                     _ => {
-                        let _ = std::fs::remove_file(&account_file);
                         let _ = sender.send("EOF_ERROR".to_string());
                     }
                 }
