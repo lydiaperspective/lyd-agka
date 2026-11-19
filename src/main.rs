@@ -2686,6 +2686,9 @@ fn build_ui(app: &Application) {
                          echo 'ERROR: bootc install failed. Target partially initialized; rerun installer to reformat before retrying.' >&2; \\
                          exit 1; \\
                        }} && \\
+                      if ! mountpoint -q /mnt/var; then mount -t btrfs -o subvol=@var "$ROOT_DEV" /mnt/var; fi && \\
+                      VAR_FSROOT=$(findmnt -rn -M /mnt/var -o FSROOT) && \\
+                      [ "$VAR_FSROOT" = "/@var" ] || {{ echo "ERROR: The persistent @var subvolume is not mounted at /mnt/var"; exit 1; }} && \\
                       ACCOUNT_FILE="{account_file}" && \\
                       {{ IFS= read -r USERNAME; IFS= read -r FULL_NAME; IFS= read -r PASSWORD; }} < "$ACCOUNT_FILE" && \\
                       [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{{0,31}}$ ]] && \\
