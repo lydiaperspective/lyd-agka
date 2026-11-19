@@ -1,6 +1,6 @@
 pkgname=alga
 pkgver=1.0.0
-pkgrel=2
+pkgrel=3
 pkgdesc="Atomic deployment and update gateway to immutable Arch Linux built using Rust and GTK4/Libadwaita"
 arch=('x86_64')
 url="https://github.com/lydiaperspective/lyd-agka"
