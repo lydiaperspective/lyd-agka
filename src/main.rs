@@ -5,7 +5,7 @@ use libadwaita::{
 };
 use gtk::{
     Box, Button, CheckButton, Image, Label, MenuButton, Orientation, Popover,
-    Entry, ProgressBar, ScrolledWindow, Spinner, Stack, StackTransitionType, Switch, TextView,
+    ProgressBar, ScrolledWindow, Spinner, Stack, StackTransitionType, Switch, TextView,
     gio,
 };
 use std::cell::{Cell, RefCell};
@@ -1783,7 +1783,7 @@ fn build_ui(app: &Application) {
         .visible(true)
         .build();
     let opt_switch = Switch::builder()
-        .active(is_nvidia_hw)
+        .active(false)
         .valign(gtk::Align::Center)
         .build();
     row_optimize.add_suffix(&opt_switch);
@@ -2231,7 +2231,7 @@ fn build_ui(app: &Application) {
         move |_| {
         let is_apex = apex_switch.is_active();
         let use_server_profile = server_switch.is_active();
-        let include_nvidia = opt_switch.is_active() && has_nvidia_gpu();
+        let include_nvidia = opt_switch.is_active();
         let use_nvidia_580 = nvidia_580.is_active();
 
         let var_name = resolve_image_tag(
