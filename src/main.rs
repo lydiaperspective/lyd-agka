@@ -216,40 +216,7 @@ fn is_asus_device() -> bool {
         .unwrap_or(false)
 }
 
-fn has_nvidia_gpu() -> bool {
-    let Ok(entries) = std::fs::read_dir("/sys/bus/pci/devices") else {
-        return false;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let vendor = std::fs::read_to_string(path.join("vendor")).unwrap_or_default();
-        let class = std::fs::read_to_string(path.join("class")).unwrap_or_default();
-        if vendor.trim() == "0x10de" && class.trim().starts_with("0x03") {
-            return true;
-        }
-    }
-    false
-}
 
-fn is_intel_3rd_gen_cpu() -> bool {
-    let cpuinfo = std::fs::read_to_string("/proc/cpuinfo").unwrap_or_default();
-    let mut vendor = false;
-    let mut family = None;
-    let mut model = None;
-    for line in cpuinfo.lines() {
-        let Some((key, value)) = line.split_once(':') else { continue };
-        match key.trim() {
-            "vendor_id" => vendor |= value.trim() == "GenuineIntel",
-            "cpu family" => family = value.trim().parse::<u32>().ok(),
-            "model" => model = value.trim().parse::<u32>().ok(),
-            _ => {}
-        }
-        if vendor && family == Some(6) && matches!(model, Some(58 | 62)) {
-            return true;
-        }
-    }
-    false
-}
 
 /// Resolve the installable, fully composed bootc image for the selected components.
 ///
