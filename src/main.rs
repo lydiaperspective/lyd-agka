@@ -1792,11 +1792,10 @@ fn build_ui(app: &Application) {
     // --- NVIDIA Driver Choice ---
     let grp_nvidia_driver = PreferencesGroup::builder()
         .description("Only enable NVIDIA support if your system uses a supported NVIDIA GPU. NVIDIA 580 is the proprietary legacy branch; NVIDIA Open is the newer open kernel-module option. The selected driver is included in the matching desktop image.")
-        .visible(true)
+        .visible(false)
         .build();
     let nvidia_open = CheckButton::builder().build();
     let nvidia_580 = CheckButton::builder().group(&nvidia_open).build();
-    nvidia_open.set_active(true);
 
     let row_nvidia_open = ActionRow::builder()
         .title("NVIDIA Open (DKMS)")
