@@ -1806,16 +1806,14 @@ fn build_ui(app: &Application) {
     
     // --- Image Profile Selection ---
     let grp_kernel = PreferencesGroup::builder()
-        .description("Choose the system profile, kernel, and GPU driver independently. The build pipeline composes these layers into the matching installable image.")
+        .description("Choose Desktop or Server yourself. Hardware detection does not restrict the available image choices. Recommendations: Desktop is for a graphical KDE workstation; Server is headless and uses the LTS kernel with Cockpit and SSH.")
         .build();
 
-    let is_nvidia_hw = has_nvidia_gpu();
-    let is_intel3_server_cpu = is_intel_3rd_gen_cpu();
 
     let row_optimize = ActionRow::builder()
         .title("NVIDIA Driver Support")
-        .subtitle("Add an NVIDIA driver layer to the desktop system")
-        .visible(is_nvidia_hw)
+        .subtitle("Optional: select a driver profile for NVIDIA graphics. You can choose this even if the installer cannot detect your GPU.")
+        .visible(true)
         .build();
     let opt_switch = Switch::builder()
         .active(is_nvidia_hw)
@@ -1826,8 +1824,8 @@ fn build_ui(app: &Application) {
 
     // --- NVIDIA Driver Choice ---
     let grp_nvidia_driver = PreferencesGroup::builder()
-        .description("Choose which NVIDIA driver layer is composed into the desktop image.")
-        .visible(is_nvidia_hw)
+        .description("Only enable NVIDIA support if your system uses a supported NVIDIA GPU. NVIDIA 580 is the proprietary legacy branch; NVIDIA Open is the newer open kernel-module option. The selected driver is included in the matching desktop image.")
+        .visible(true)
         .build();
     let nvidia_open = CheckButton::builder().build();
     let nvidia_580 = CheckButton::builder().group(&nvidia_open).build();
@@ -1835,7 +1833,7 @@ fn build_ui(app: &Application) {
 
     let row_nvidia_open = ActionRow::builder()
         .title("NVIDIA Open (DKMS)")
-        .subtitle("Arch Linux open kernel module and matching userspace")
+        .subtitle("Open kernel modules and matching userspace; choose for supported newer NVIDIA GPUs.")
         .build();
     row_nvidia_open.add_prefix(&nvidia_open);
     row_nvidia_open.set_activatable_widget(Some(&nvidia_open));
@@ -1843,7 +1841,7 @@ fn build_ui(app: &Application) {
 
     let row_nvidia_580 = ActionRow::builder()
         .title("NVIDIA 580 (proprietary)")
-        .subtitle("CachyOS 580xx DKMS driver and matching userspace packages")
+        .subtitle("Proprietary 580xx DKMS driver and matching userspace; choose for GPUs that require the 580 branch.")
         .build();
     row_nvidia_580.add_prefix(&nvidia_580);
     row_nvidia_580.set_activatable_widget(Some(&nvidia_580));
@@ -1851,13 +1849,13 @@ fn build_ui(app: &Application) {
     grp_kernel.add(&grp_nvidia_driver);
 
     opt_switch.connect_active_notify(clone!(#[weak] grp_nvidia_driver, move |s| {
-        grp_nvidia_driver.set_visible(is_nvidia_hw && s.is_active());
+        grp_nvidia_driver.set_visible(s.is_active());
     }));
 
     // --- Apex Mode Switch ---
     let row_apex = ActionRow::builder()
         .title("Apex Mode")
-        .subtitle("Uses the separately built CachyOS Apex kernel layer instead of the standard kernel")
+        .subtitle("Optional performance-focused CachyOS Apex kernel. Choose Standard for the broadest/default compatibility.")
         .build();
     let apex_switch = Switch::builder().active(false).valign(gtk::Align::Center).build();
     row_apex.add_suffix(&apex_switch);
@@ -1866,8 +1864,8 @@ fn build_ui(app: &Application) {
     // --- Intel 3rd-gen Headless Server Profile ---
     let row_server = ActionRow::builder()
         .title("Headless Server Profile")
-        .subtitle("Intel 3rd-gen · server base + LTS kernel · Cockpit and SSH")
-        .visible(is_intel3_server_cpu)
+        .subtitle("Install the headless server image with an LTS kernel, Cockpit, and SSH. Recommended for server workloads; desktop and NVIDIA options will be disabled.")
+        .visible(true)
         .build();
     let server_switch = Switch::builder().active(false).valign(gtk::Align::Center).build();
     row_server.add_suffix(&server_switch);
@@ -1880,8 +1878,8 @@ fn build_ui(app: &Application) {
         #[weak] opt_switch,
         move |s| {
             let desktop_profile = !s.is_active();
-            row_optimize.set_visible(desktop_profile && is_nvidia_hw);
-            grp_nvidia_driver.set_visible(desktop_profile && is_nvidia_hw && opt_switch.is_active());
+            row_optimize.set_visible(desktop_profile);
+            grp_nvidia_driver.set_visible(desktop_profile && opt_switch.is_active());
             row_apex.set_visible(desktop_profile);
         }
     ));
